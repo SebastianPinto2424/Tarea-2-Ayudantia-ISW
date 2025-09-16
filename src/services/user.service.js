@@ -1,20 +1,56 @@
-import { AppDataSource } from "../config/configDB.js";
-import { User } from "../entities/user.entity.js";
+
+"use strict";
 import bcrypt from "bcrypt";
+import { AppDataSource } from "../config/configDb.js";
+import User from "../entities/user.entity.js";
 
-const userRepository = AppDataSource.getRepository(User);
+const repo = () => AppDataSource.getRepository(User);
 
-export async function createUser(data) {
-  const hashedPassword = await bcrypt.hash(data.password, 10);
-
-  const newUser = userRepository.create({
-    email: data.email,
-    password: hashedPassword,
-  });
-
-  return await userRepository.save(newUser);
+export async function findUserById(id) {
+  if (!id) return undefined;
+  return await repo().findOne({ where: { id } });
 }
 
 export async function findUserByEmail(email) {
-  return await userRepository.findOneBy({ email });
+  if (!email) return undefined;
+  return await repo().findOne({ where: { email } });
 }
+
+export async function createUser({ email, password }) {
+  const exists = await findUserByEmail(email);
+  if (exists) throw new Error("El email ya está registrado");
+  const hashed = await bcrypt.hash(password, 10);
+  const saved = await repo().save(repo().create({ email, password: hashed }));
+  delete saved.password;
+  return saved;
+}
+
+
+export async function updateUserById(userId, { email, password }) {
+  const user = await findUserById(userId);
+  if (!user) throw new Error("Usuario no encontrado");
+
+  if (email && email !== user.email) {
+    const exists = await findUserByEmail(email);
+    if (exists && exists.id !== user.id) throw new Error("El email ya está en uso");
+    user.email = email;
+  }
+  if (password) {
+    user.password = await bcrypt.hash(password, 10);
+  }
+
+  const saved = await repo().save(user);
+  delete saved.password;
+  return saved;
+}
+
+export async function deleteUserById(userId) {
+  const user = await findUserById(userId);
+  if (!user) throw new Error("Usuario no encontrado");
+  await repo().remove(user);
+  return true;
+}
+
+export const updateOwnProfile = (userId, data) => updateUserById(userId, data);
+export const deleteOwnAccount = (userId) => deleteUserById(userId);
+

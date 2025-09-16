@@ -1,38 +1,61 @@
-import { loginUser } from "../services/auth.service.js";
-import { createUser } from "../services/user.service.js";
-import { handleSuccess, handleErrorClient, handleErrorServer } from "../Handlers/responseHandlers.js";
+
+"use strict";
+import { loginService, registerService } from "../services/auth.service.js";
+import {
+  handleErrorClient,
+  handleErrorServer,
+  handleSuccess,
+} from "../Handlers/responseHandlers.js";
 
 export async function login(req, res) {
   try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return handleErrorClient(res, 400, "Email y contraseña son requeridos");
+    const { body } = req;
+
+    const [result, errorLogin] = await loginService(body);
+    if (errorLogin) {
+      return handleErrorClient(res, 401, "Error de autenticación", errorLogin);
     }
+
+    const { user, accessToken } = result;
+
     
-    const data = await loginUser(email, password);
-    handleSuccess(res, 200, "Login exitoso", data);
+    res.cookie("jwt", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60 * 1000, // 1 día
+    });
+
+    return handleSuccess(res, 200, "Inicio de sesión exitoso", {
+      user,
+      accessToken,
+    });
   } catch (error) {
-    handleErrorClient(res, 401, error.message);
+    return handleErrorServer(
+      res,
+      500,
+      "Error interno del servidor",
+      error?.message || error
+    );
   }
 }
 
 export async function register(req, res) {
   try {
-    const data = req.body;
-    
-    if (!data.email || !data.password) {
-      return handleErrorClient(res, 400, "Email y contraseña son requeridos");
+    const { body } = req;
+    const [result, errorRegister] = await registerService(body);
+    if (errorRegister) {
+      return handleErrorClient(res, 400, "No se pudo registrar", errorRegister);
     }
-    
-    const newUser = await createUser(data);
-    delete newUser.password; // Nunca devolver la contraseña
-    handleSuccess(res, 201, "Usuario registrado exitosamente", newUser);
+    if (result?.password) delete result.password;
+
+    return handleSuccess(res, 201, "Usuario registrado", result);
   } catch (error) {
-    if (error.code === '23505') { // Código de error de PostgreSQL para violación de unique constraint
-      handleErrorClient(res, 409, "El email ya está registrado");
-    } else {
-      handleErrorServer(res, 500, "Error interno del servidor", error.message);
-    }
+    return handleErrorServer(
+      res,
+      500,
+      "Error interno del servidor",
+      error?.message || error
+    );
   }
 }

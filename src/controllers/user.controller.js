@@ -1,84 +1,57 @@
+
+"use strict";
+import bcrypt from "bcrypt";
+import { AppDataSource } from "../config/configDb.js";
+import User from "../entities/user.entity.js";
 import {
-  findNotas,
-  findNotaById,
-  createNota,
-  updateNota,
-  deleteNota,
-} from "../services/notas.services.js";
-import { handleSuccess, handleErrorClient, handleErrorServer } from "../Handlers/responseHandlers.js";
+  handleSuccess,
+  handleErrorClient,
+  handleErrorServer,
+} from "../Handlers/responseHandlers.js";
 
-export class NotasController {
-  async getAllNotas(req, res) {
-    try {
-      const notas = await findNotas();
-      handleSuccess(res, 200, "Notas obtenidas exitosamente", notas);
-    } catch (error) {
-      handleErrorServer(res, 500, "Error al obtener las notas", error.message);
+export async function updateMyProfile(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return handleErrorClient(res, 401, "No autenticado");
+
+    const { email, password } = req.body || {};
+    if (!email && !password) {
+      return handleErrorClient(res, 400, "Debes enviar email y/o password");
     }
+
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { id: userId } });
+    if (!user) return handleErrorClient(res, 404, "Usuario no encontrado");
+
+    if (email && email !== user.email) {
+      const exists = await repo.findOne({ where: { email } });
+      if (exists) return handleErrorClient(res, 409, "El email ya está en uso");
+      user.email = email;
+    }
+
+    if (password) {
+      user.password = await bcrypt.hash(password, 10);
+    }
+
+    await repo.save(user);
+    return handleSuccess(res, 200, "Perfil actualizado", { id: user.id, email: user.email });
+  } catch (error) {
+    return handleErrorServer(res, 500, "Error actualizando perfil", error.message);
   }
+}
 
-  async getNotaById(req, res) {
-    try {
-      const { id } = req.params;
-      
-      if (!id || isNaN(id)) {
-        return handleErrorClient(res, 400, "ID de nota inválido");
-      }
-      
-      const nota = await findNotaById(id);
-      handleSuccess(res, 200, "Nota obtenida exitosamente", nota);
-    } catch (error) {
-      handleErrorClient(res, 404, error.message);
-    }
-  }
+export async function deleteMyProfile(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return handleErrorClient(res, 401, "No autenticado");
 
-  async createNota(req, res) {
-    try {
-      const data = req.body;
-      
-      if (!data || Object.keys(data).length === 0) {
-        return handleErrorClient(res, 400, "Datos de la nota son requeridos");
-      }
-      
-      const nuevaNota = await createNota(data);
-      handleSuccess(res, 201, "Nota creada exitosamente", nuevaNota);
-    } catch (error) {
-      handleErrorServer(res, 500, "Error al crear la nota", error.message);
-    }
-  }
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { id: userId } });
+    if (!user) return handleErrorClient(res, 404, "Usuario no encontrado");
 
-  async updateNota(req, res) {
-    try {
-      const { id } = req.params;
-      const changes = req.body;
-      
-      if (!id || isNaN(id)) {
-        return handleErrorClient(res, 400, "ID de nota inválido");
-      }
-      
-      if (!changes || Object.keys(changes).length === 0) {
-        return handleErrorClient(res, 400, "Datos para actualizar son requeridos");
-      }
-      
-      const notaActualizada = await updateNota(id, changes);
-      handleSuccess(res, 200, "Nota actualizada exitosamente", notaActualizada);
-    } catch (error) {
-      handleErrorClient(res, 404, error.message);
-    }
-  }
-
-  async deleteNota(req, res) {
-    try {
-      const { id } = req.params;
-      
-      if (!id || isNaN(id)) {
-        return handleErrorClient(res, 400, "ID de nota inválido");
-      }
-      
-      await deleteNota(id);
-      handleSuccess(res, 200, "Nota eliminada exitosamente", { id });
-    } catch (error) {
-      handleErrorClient(res, 404, error.message);
-    }
+    await repo.remove(user);
+    return handleSuccess(res, 200, "Cuenta eliminada correctamente", { id: userId });
+  } catch (error) {
+    return handleErrorServer(res, 500, "Error eliminando cuenta", error.message);
   }
 }

@@ -1,21 +1,29 @@
+
+"use strict";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { findUserByEmail } from "./user.service.js";
+import { JWT_SECRET } from "../config/configEnv.js";
+import { findUserByEmail, createUser } from "./user.service.js";
 
-export async function loginUser(email, password) {
+export async function loginService({ email, password }) {
   const user = await findUserByEmail(email);
-  if (!user) {
-    throw new Error("Credenciales incorrectas");
+  if (!user) return [null, "Credenciales incorrectas"];
+  const ok = await bcrypt.compare(password, user.password);
+  if (!ok) return [null, "Credenciales incorrectas"];
+
+
+  const payload = { sub: user.id, email: user.email }; 
+  
+
+  const accessToken = jwt.sign(payload, JWT_SECRET || process.env.JWT_SECRET, { expiresIn: "1d" });
+  return [{ user: { id: user.id, email: user.email }, accessToken }, null];
+}
+
+export async function registerService({ email, password }) {
+  try {
+    const user = await createUser({ email, password });
+    return [user, null];
+  } catch (err) {
+    return [null, err?.message || "Error al registrar usuario"];
   }
-
-  const isMatch = bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    throw new Error("Credenciales incorrectas");
-  }
-
-  const payload = { sub: user.id, email: user.email };
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-  delete user.password;
-  return { user, token };
 }
