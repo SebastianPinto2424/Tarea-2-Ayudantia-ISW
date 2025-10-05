@@ -16,15 +16,26 @@ export async function findUserByEmail(email) {
   return await repo().findOne({ where: { email } });
 }
 
-export async function createUser({ email, password }) {
+
+export async function createUser({ nombre, apellido, email, password, rol }) {
   const exists = await findUserByEmail(email);
   if (exists) throw new Error("El email ya está registrado");
+
   const hashed = await bcrypt.hash(password, 10);
-  const saved = await repo().save(repo().create({ email, password: hashed }));
+
+  const newUser = repo().create({
+    nombre: nombre || null,
+    apellido: apellido || null,
+    email,
+    password: hashed,
+    rol: rol || null,
+    estado_activo: true
+  });
+
+  const saved = await repo().save(newUser);
   delete saved.password;
   return saved;
 }
-
 
 export async function updateUserById(userId, { email, password }) {
   const user = await findUserById(userId);

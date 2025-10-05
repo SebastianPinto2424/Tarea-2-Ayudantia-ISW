@@ -6,6 +6,7 @@ import {
   handleErrorServer,
   handleSuccess,
 } from "../Handlers/responseHandlers.js";
+import { usuarioBodyValidation } from "../validations/user.validation.js";
 
 export async function login(req, res) {
   try {
@@ -23,7 +24,7 @@ export async function login(req, res) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 24 * 60 * 60 * 1000, // 1 día
+      maxAge: 24 * 60 * 60 * 1000, 
     });
 
     return handleSuccess(res, 200, "Inicio de sesión exitoso", {
@@ -42,6 +43,16 @@ export async function login(req, res) {
 
 export async function register(req, res) {
   try {
+    const { error } = usuarioBodyValidation.validate(req.body);
+    if (error) {
+      return handleErrorClient(
+        res,
+        400,
+        "Datos inválidos",
+        error.details.map((d) => d.message).join(", ")
+      );
+    }
+
     const { body } = req;
     const [result, errorRegister] = await registerService(body);
     if (errorRegister) {

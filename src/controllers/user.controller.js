@@ -8,11 +8,23 @@ import {
   handleErrorClient,
   handleErrorServer,
 } from "../Handlers/responseHandlers.js";
+import { usuarioUpdateValidation } from "../validations/user.validation.js";
+
 
 export async function updateMyProfile(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) return handleErrorClient(res, 401, "No autenticado");
+
+    const { error } = usuarioUpdateValidation.validate(req.body);
+    if (error) {
+      return handleErrorClient(
+        res,
+        400,
+        "Datos inválidos",
+        error.details.map((d) => d.message).join(", ")
+      );
+    }
 
     const { email, password } = req.body || {};
     if (!email && !password) {

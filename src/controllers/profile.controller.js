@@ -6,7 +6,7 @@ import User from "../entities/user.entity.js";
 import { handleSuccess, handleErrorClient, handleErrorServer } from "../Handlers/responseHandlers.js";
 import { getUserFromToken } from "../middleware/auth.middleware.js";
 import { updateOwnProfile, deleteOwnAccount } from "../services/user.service.js";
-
+import { usuarioUpdateValidation } from "../validations/user.validation.js";
 
 export function getPublicProfile(_req, res) {
   return handleSuccess(res, 200, "Perfil público", {
@@ -29,19 +29,69 @@ export async function getPrivateProfile(req, res) {
   }
 }
 
+/*
 export async function editPrivateProfile(req, res) {
   const me = getUserFromToken(req, res);
-  if (!me?.id) return; 
+  if (!me?.id) return;
+
+  const { error } = usuarioUpdateValidation.validate(req.body);
+  if (error) {
+    return handleErrorClient(
+      res,
+      400,
+      "Datos inválidos",
+      error.details.map((d) => d.message).join(", ")
+    );
+  }
+
   const { email, password } = req.body || {};
   if (email === undefined && password === undefined) {
     return handleErrorClient(res, 400, "Debes enviar email y/o password");
   }
+
   try {
     const updated = await updateOwnProfile(me.id, { email, password });
     return handleSuccess(res, 200, "Perfil actualizado con éxito", { id: updated.id, email: updated.email });
   } catch (err) {
     const msg = String(err?.message || "");
     const code = /en uso|registrado/i.test(msg) ? 409 : (/no encontrado/i.test(msg) ? 404 : 400);
+    return handleErrorClient(res, code, msg || "Error al actualizar perfil");
+  }
+}*/
+
+export async function editPrivateProfile(req, res) {
+  const me = getUserFromToken(req, res);
+  if (!me?.id) return;
+
+  const { error } = usuarioUpdateValidation.validate(req.body);
+  if (error) {
+    return handleErrorClient(
+      res,
+      400,
+      "Datos inválidos",
+      error.details.map((d) => d.message).join(", ")
+    );
+  }
+
+  const { email, password } = req.body || {};
+  if (email === undefined && password === undefined) {
+    return handleErrorClient(res, 400, "Debes enviar email y/o password");
+  }
+
+  try {
+    const updated = await updateOwnProfile(me.id, { email, password });
+
+    return handleSuccess(res, 200, "Perfil actualizado con éxito", {
+      id: updated.id,
+      email: updated.email
+    });
+  } catch (err) {
+    const msg = String(err?.message || "");
+    const code = /en uso|registrado/i.test(msg)
+      ? 409
+      : /no encontrado/i.test(msg)
+      ? 404
+      : 400;
     return handleErrorClient(res, code, msg || "Error al actualizar perfil");
   }
 }

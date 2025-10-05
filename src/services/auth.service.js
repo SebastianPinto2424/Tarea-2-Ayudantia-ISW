@@ -19,11 +19,13 @@ export async function loginService({ email, password }) {
   return [{ user: { id: user.id, email: user.email }, accessToken }, null];
 }
 
-export async function registerService({ email, password }) {
+
+export async function registerService({ nombre, apellido, email, password, rol }) {
   try {
-    const user = await createUser({ email, password });
+    const user = await createUser({ nombre, apellido, email, password, rol });
     return [user, null];
   } catch (err) {
     return [null, err?.message || "Error al registrar usuario"];
   }
 }
+
